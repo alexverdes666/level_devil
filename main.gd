@@ -410,29 +410,48 @@ func _logic_level_2(delta: float) -> void:
 func _logic_level_3(delta: float) -> void:
 	if doors.is_empty():
 		return
+	const TRIGGER_DIST := 200.0
+	const FLEE_SPEED := 320.0
+	const MAX_WRAPS := 3
+	const COMMIT_TIME := 12.0
+
 	var d: Dictionary = doors[0]
 	var r: Rect2 = d["rect"]
-	var dx: float = r.position.x - player_pos.x
-	# If player is too close, door flees right at increasing speed; wraps.
-	var dist: float = absf(dx)
 	var cur_speed: float = float(level_state.get("door_speed", 0.0))
-	if dist < 220.0:
-		cur_speed = lerpf(cur_speed, 280.0, 0.05)
-		var dir: float = 1.0 if dx >= 0.0 else -1.0
-		r.position.x += cur_speed * delta * dir
+	var grace: float = float(level_state.get("door_grace", 0.0))
+	var wraps: int = int(level_state.get("door_wraps", 0))
+	var committed: bool = wraps >= MAX_WRAPS or time_in_level > COMMIT_TIME
+
+	if committed:
+		cur_speed = 0.0
+	elif grace > 0.0:
+		# After a wrap, the door briefly holds still so the player can spot it.
+		grace = maxf(0.0, grace - delta)
+		cur_speed = lerpf(cur_speed, 0.0, 0.2)
 	else:
-		cur_speed = lerpf(cur_speed, 0.0, 0.1)
-	level_state["door_speed"] = cur_speed
-	# Wrap horizontally
-	if r.position.x > VIEW_W:
-		r.position.x = -r.size.x
-	if r.position.x < -r.size.x:
-		r.position.x = VIEW_W
+		var dx: float = r.position.x - player_pos.x
+		if absf(dx) < TRIGGER_DIST:
+			cur_speed = lerpf(cur_speed, FLEE_SPEED, 0.06)
+			var dir: float = 1.0 if dx >= 0.0 else -1.0
+			r.position.x += cur_speed * delta * dir
+		else:
+			cur_speed = lerpf(cur_speed, 0.0, 0.15)
+
+	# Wrap to a visible spot on the opposite side and start a grace window.
+	if r.position.x > VIEW_W - 8.0:
+		r.position.x = 16.0
+		grace = 0.8
+		wraps += 1
+	elif r.position.x + r.size.x < 8.0:
+		r.position.x = VIEW_W - r.size.x - 16.0
+		grace = 0.8
+		wraps += 1
+
 	d["rect"] = r
 	doors[0] = d
-	# Stop fleeing after 12 seconds: door commits.
-	if time_in_level > 12.0:
-		level_state["door_speed"] = 0.0
+	level_state["door_speed"] = cur_speed
+	level_state["door_grace"] = grace
+	level_state["door_wraps"] = wraps
 
 
 func _logic_level_4(delta: float) -> void:
