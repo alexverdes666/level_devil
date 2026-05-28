@@ -28,25 +28,90 @@ The repo includes the Godot project but no binaries. Open it in Godot 4.3:
 
 Then press `F5` to run.
 
-## Cut a release for friends
+## Development workflow
 
-Releases are built and published entirely by GitHub Actions. To ship:
+There are two distinct push flows. Knowing which one you want is the whole
+trick to working in this repo.
+
+### A. Everyday changes (no release for friends)
+
+Edit, test, commit, push to `main`. Friends with the installer are **not**
+affected — their launcher only updates when a new GitHub Release exists.
 
 ```powershell
-git tag v0.1.0
-git push origin v0.1.0
+# Test the change locally first
+& "D:\Godot4\Godot_v4.3-stable_win64.exe" --path .   # then F5 in the editor
+
+# Commit and push
+git add -A
+git commit -m "Tweak level 3 door speed"
+git push
 ```
 
-The workflow at `.github/workflows/release.yml` will:
+CI runs the release workflow on tag pushes only, so pushing to `main` is
+cheap — it doesn't build or release anything.
+
+### B. Cutting a release that friends will receive
+
+When `main` is in a state you're happy to ship, push a semver tag. CI does
+everything else.
+
+```powershell
+# Make sure main is up to date and pushed first
+git status
+git push
+
+# Bump the tag — use the next semver. Existing tags are visible with `git tag`.
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+That tag push triggers `.github/workflows/release.yml`, which will:
 
 1. Install Godot 4.3 + export templates on the runner
 2. Export `build/game.exe` from the Godot project
 3. Build `LevelDevilLauncher.exe` with MSVC (CMake project under `launcher/`)
 4. Install Inno Setup and produce `LevelDevilSetup-<version>.exe`
-5. Publish a GitHub Release tagged `v0.1.0` with all three assets attached
+5. Publish a GitHub Release with all three assets attached, named after the tag
 
 Friends download `LevelDevilSetup-<version>.exe` from the
-[Releases page](https://github.com/alexverdes666/level_devil/releases) and run it.
+[Releases page](https://github.com/alexverdes666/level_devil/releases) — that
+single .exe is what you share with them.
+
+Existing installs auto-update: on next launch, `LevelDevilLauncher.exe`
+queries the GitHub Releases API, sees the newer tag, downloads the new
+`game.exe`, and replaces the local copy before launching it. The in-game
+**Check for updates** button forces the same flow without a relaunch.
+
+### Versioning rules
+
+- `v0.x.y` while pre-1.0. Bump `y` for any user-visible change, `x` for bigger
+  feature jumps.
+- Tags must start with `v` — the CI trigger and the launcher both depend on
+  that prefix.
+- Don't reuse or move tags. If a release is broken, ship `v0.x.(y+1)` rather
+  than re-tagging. Moving a tag will not propagate to installed launchers
+  (they cache by tag name).
+
+### If a release is broken
+
+1. Fix the bug on `main`, commit, push.
+2. Tag `v0.x.(y+1)` and push the tag.
+3. Optionally delete the broken release from the GitHub Releases page so
+   nobody installs it fresh. (Launchers that already have the broken version
+   will pick up `v0.x.(y+1)` on next launch regardless.)
+
+### If you only changed the launcher or installer
+
+Same flow — bump the tag and push. The Godot game export is fast (~30s on
+the runner), so there's no point splitting the pipeline.
+
+### Workflow dispatch (manual build without tagging)
+
+The release workflow also has a `workflow_dispatch` trigger. From the GitHub
+Actions tab, you can run it with a manual tag string (e.g. `v0.0.0-dev`).
+That builds all the artifacts and uploads them as workflow artifacts, but
+does **not** create a GitHub Release. Useful for verifying CI changes.
 
 ## How auto-update works
 
