@@ -1,0 +1,43 @@
+# Godot
+.godot/
+.import/
+export.cfg
+export_presets.cfg.bak
+*.translation
+
+# Build outputs
+build/
+out/
+dist/
+*.exe
+*.pdb
+*.ilk
+*.obj
+*.lib
+*.exp
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!**/cmake/*.cmake
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.suo
+*.sln.docstates
+
+# Inno Setup
+installer/Output/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
